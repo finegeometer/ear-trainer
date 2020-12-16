@@ -1,0 +1,81 @@
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Main</title>
+    <script src="main.js"></script>
+</head>
+
+<body>
+    <div id="myapp"></div>
+    <script>
+        var app = Elm.Main.init({ flags: Math.random() });
+
+        var ctx = new AudioContext();
+
+        var timeoutID = null;
+        var oscillators = {};
+
+        function enableOscillator(ratio) {
+            let osc = ctx.createOscillator();
+            osc.type = 'square';
+            osc.frequency.value = 220 * ratio[0] / ratio[1];
+
+            let gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.02, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + 4);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+
+            oscillators[ratio] = osc;
+        }
+
+        function disableOscillator(ratio) {
+            oscillators[ratio].stop();
+            delete oscillators[ratio];
+        }
+
+        function toggleOscillator(ratio) {
+            if (oscillators[ratio]) {
+                disableOscillator(ratio)
+            } else {
+                enableOscillator(ratio)
+            }
+        }
+
+        function play(instructions) {
+            let instruction = instructions.shift();
+
+            if (instruction === undefined) {
+                return;
+            }
+
+            let closure = function () {
+                toggleOscillator(instruction.ratio);
+                play(instructions);
+            };
+
+            if (instruction.wait > 0) {
+                timeoutID = setTimeout(closure, 1000 * instruction.wait);
+            } else {
+                closure();
+            }
+        }
+
+        app.ports.askJs.subscribe(instructions => {
+            if (timeoutID !== null) {
+                clearTimeout(timeoutID);
+                timeoutID = null;
+            }
+            for (ratio in oscillators) {
+                disableOscillator(ratio);
+            }
+            play(instructions);
+        });
+
+    </script>
+</body>
+
+</html>
